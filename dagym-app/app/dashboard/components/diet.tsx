@@ -1,178 +1,323 @@
-// diet.tsx
-
 "use client"
 
-import React, { useState, useMemo } from "react"
-import { ChevronLeft, ChevronRight, Flame, Beef, Wheat, Lollipop } from "lucide-react"
-import Image from "next/image"
+import React, { useState, useEffect, useMemo } from "react"
+import { useRouter } from "next/navigation"
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Flame, 
+  Beef, 
+  Wheat, 
+  Lollipop, 
+  PlusCircle, 
+  Save, 
+  Loader2,
+  Trash2,
+  Pencil
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-// --- DADOS DE EXEMPLO PARA O PLANO DE DIETA ---
-
-const dietPlan = {
-  name: "Plano de Equilíbrio Nutricional",
-  dailyGoal: { calories: 2200, protein: 150, carbs: 250, fats: 73 },
-  week: {
-    Segunda: {
-      "Café da Manhã": [
-        { name: "Ovos Mexidos", qty: "3 unidades", image: "/diet/eggs.jpg" },
-        { name: "Pão Integral", qty: "2 fatias", image: "/diet/bread.jpg" },
-        { name: "Abacate", qty: "1/2 unidade", image: "/diet/avocado.jpg" },
-      ],
-      "Almoço": [
-        { name: "Frango Grelhado", qty: "150g", image: "/diet/chicken.jpg" },
-        { name: "Arroz Integral", qty: "100g", image: "/diet/rice.jpg" },
-        { name: "Salada de Folhas", qty: "A gosto", image: "/diet/salad.jpg" },
-      ],
-      "Lanche da Tarde": [{ name: "Iogurte Grego", qty: "1 pote", image: "/diet/yogurt.jpg" }],
-      "Jantar": [
-        { name: "Salmão Assado", qty: "150g", image: "/diet/salmon.jpg" },
-        { name: "Batata Doce", qty: "100g", image: "/diet/sweet-potato.jpg" },
-      ],
-    },
-    Terça: {
-      "Café da Manhã": [
-        { name: "Shake de Proteína", qty: "1 scoop", image: "/diet/shake.jpg" },
-        { name: "Banana", qty: "1 unidade", image: "/diet/banana.jpg" },
-      ],
-      "Almoço": [
-        { name: "Patinho Moído", qty: "150g", image: "/diet/beef.jpg" },
-        { name: "Macarrão Integral", qty: "100g", image: "/diet/pasta.jpg" },
-      ],
-      "Lanche da Tarde": [{ name: "Mix de Castanhas", qty: "30g", image: "/diet/nuts.jpg" }],
-      "Jantar": [
-        { name: "Omelete de Queijo", qty: "3 ovos", image: "/diet/omelette.jpg" },
-        { name: "Salada de Tomate", qty: "A gosto", image: "/diet/salad.jpg" },
-      ],
-    },
-  },
+// --- TIPOS ---
+interface FoodItem {
+  name: string
+  qty: string
+  calories: number
+  protein: number
+  carbs: number
+  fats: number
 }
 
-const foodData = {
-  "Ovos Mexidos": { calories: 210, protein: 18, carbs: 2, fats: 15 },
-  "Pão Integral": { calories: 140, protein: 8, carbs: 26, fats: 2 },
-  "Abacate": { calories: 160, protein: 2, carbs: 9, fats: 15 },
-  "Frango Grelhado": { calories: 240, protein: 45, carbs: 0, fats: 6 },
-  "Arroz Integral": { calories: 130, protein: 3, carbs: 28, fats: 1 },
-  "Salada de Folhas": { calories: 20, protein: 1, carbs: 4, fats: 0 },
-  "Iogurte Grego": { calories: 100, protein: 18, carbs: 7, fats: 0 },
-  "Salmão Assado": { calories: 300, protein: 35, carbs: 0, fats: 18 },
-  "Batata Doce": { calories: 110, protein: 2, carbs: 26, fats: 0 },
-  "Shake de Proteína": { calories: 120, protein: 25, carbs: 3, fats: 1 },
-  "Banana": { calories: 105, protein: 1, carbs: 27, fats: 0 },
-  "Patinho Moído": { calories: 250, protein: 40, carbs: 0, fats: 10 },
-  "Macarrão Integral": { calories: 150, protein: 6, carbs: 32, fats: 1 },
-  "Mix de Castanhas": { calories: 180, protein: 5, carbs: 6, fats: 16 },
-  "Omelete de Queijo": { calories: 350, protein: 25, carbs: 3, fats: 26 },
-  "Salada de Tomate": { calories: 30, protein: 1, carbs: 7, fats: 0 },
+interface MealMap {
+  [mealName: string]: FoodItem[]
+}
+
+interface WeeklyDiet {
+  [dayName: string]: MealMap
+}
+
+interface DietPlan {
+  name: string
+  dailyGoal: { calories: number; protein: number; carbs: number; fats: number }
+  week: WeeklyDiet
 }
 
 const weekDays = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+const mealTypes = ["Café da Manhã", "Almoço", "Lanche da Tarde", "Jantar", "Ceia"]
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+
+// Template vazio para novos usuários
+const emptyPlan: DietPlan = {
+  name: "Meu Plano Alimentar",
+  dailyGoal: { calories: 2000, protein: 150, carbs: 200, fats: 60 },
+  week: {
+    "Segunda": {}, "Terça": {}, "Quarta": {}, "Quinta": {}, "Sexta": {}, "Sábado": {}, "Domingo": {}
+  }
+}
 
 export function DietPage() {
+  const router = useRouter()
+
+  // --- ESTADOS ---
+  const [dietPlan, setDietPlan] = useState<DietPlan | null>(null)
   const [dayIndex, setDayIndex] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+
+  // Estados do Modal
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingContext, setEditingContext] = useState<{ mealName: string, foodIndex: number | null } | null>(null)
+  const [foodForm, setFoodForm] = useState<FoodItem>({
+    name: "", qty: "", calories: 0, protein: 0, carbs: 0, fats: 0
+  })
+  const [selectedMealType, setSelectedMealType] = useState(mealTypes[0])
+
+  // --- CARREGAMENTO ---
+  useEffect(() => {
+    const storedUser = localStorage.getItem('dagym_user')
+    if (!storedUser) {
+      router.push('/login')
+      return
+    }
+    
+    const user = JSON.parse(storedUser)
+    setCurrentUser(user)
+
+    const fetchDiet = async () => {
+      if (!API_URL) return
+      try {
+        const res = await fetch(`${API_URL}/api/diet/${user.id}`)
+        if (res.ok) {
+          const text = await res.text()
+          if (text) {
+            setDietPlan(JSON.parse(text))
+          } else {
+            setDietPlan(emptyPlan)
+          }
+        } else {
+            setDietPlan(emptyPlan)
+        }
+      } catch (error) {
+        console.error("Erro ao buscar dieta", error)
+        setDietPlan(emptyPlan)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchDiet()
+  }, [router])
+
+  // --- LÓGICA DE CÁLCULO ---
+  const currentDay = weekDays[dayIndex]
+  
+  const dailyTotals = useMemo(() => {
+    let totals = { calories: 0, protein: 0, carbs: 0, fats: 0 }
+    if (!dietPlan || !dietPlan.week[currentDay]) return totals
+
+    const meals = dietPlan.week[currentDay]
+    Object.values(meals).forEach((foods) => {
+      foods.forEach((food) => {
+        totals.calories += Number(food.calories) || 0
+        totals.protein += Number(food.protein) || 0
+        totals.carbs += Number(food.carbs) || 0
+        totals.fats += Number(food.fats) || 0
+      })
+    })
+    return totals
+  }, [dietPlan, currentDay])
+
 
   const handleDayChange = (direction: number) => {
     setDayIndex((prev) => (prev + direction + weekDays.length) % weekDays.length)
   }
 
-  const currentDay = weekDays[dayIndex]
-  const meals = dietPlan.week[currentDay] || {}
-
-  const dailyTotals = useMemo(() => {
-    let totals = { calories: 0, protein: 0, carbs: 0, fats: 0 }
-    if (!meals) return totals
-
-    for (const meal of Object.values(meals)) {
-      for (const food of meal) {
-        const data = foodData[food.name]
-        if (data) {
-          totals.calories += data.calories
-          totals.protein += data.protein
-          totals.carbs += data.carbs
-          totals.fats += data.fats
-        }
-      }
+  const handleSaveDiet = async () => {
+    if (!currentUser || !dietPlan) return
+    setIsSaving(true)
+    try {
+      await fetch(`${API_URL}/api/diet/${currentUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dietJson: JSON.stringify(dietPlan) })
+      })
+      alert("Dieta salva com sucesso!")
+    } catch (error) {
+      alert("Erro ao salvar dieta.")
+    } finally {
+      setIsSaving(false)
     }
-    return totals
-  }, [meals])
+  }
+
+  // --- MODAL HANDLERS ---
+
+  const openAddFoodModal = (mealName?: string) => {
+    setFoodForm({ name: "", qty: "", calories: 0, protein: 0, carbs: 0, fats: 0 })
+    // Se clicou no botão "+" geral, usa o select. Se clicou numa refeição específica, trava nela.
+    setSelectedMealType(mealName || mealTypes[0])
+    setEditingContext(mealName ? { mealName, foodIndex: null } : null) 
+    setIsModalOpen(true)
+  }
+
+  const openEditFoodModal = (mealName: string, food: FoodItem, index: number) => {
+    setFoodForm(food)
+    setSelectedMealType(mealName)
+    setEditingContext({ mealName, foodIndex: index })
+    setIsModalOpen(true)
+  }
+
+  const deleteFood = (mealName: string, index: number) => {
+    if (!dietPlan) return
+    if (!confirm("Remover este alimento?")) return
+
+    const newDiet = { ...dietPlan }
+    const dayMeals = { ...newDiet.week[currentDay] }
+    
+    dayMeals[mealName] = dayMeals[mealName].filter((_, i) => i !== index)
+    
+    // Se a refeição ficar vazia, podemos optar por manter a chave ou remover. Vamos manter array vazio.
+    newDiet.week[currentDay] = dayMeals
+    setDietPlan(newDiet)
+  }
+
+  const saveFood = () => {
+    if (!dietPlan) return
+
+    const newDiet = { ...dietPlan }
+    // Garante que o objeto do dia existe
+    if (!newDiet.week[currentDay]) newDiet.week[currentDay] = {}
+    
+    const targetMeal = editingContext?.mealName || selectedMealType
+    
+    // Garante que o array da refeição existe
+    if (!newDiet.week[currentDay][targetMeal]) {
+      newDiet.week[currentDay][targetMeal] = []
+    }
+
+    const foodData = {
+        ...foodForm,
+        calories: Number(foodForm.calories),
+        protein: Number(foodForm.protein),
+        carbs: Number(foodForm.carbs),
+        fats: Number(foodForm.fats),
+    }
+
+    if (editingContext && editingContext.foodIndex !== null) {
+      // Editar existente
+      newDiet.week[currentDay][targetMeal][editingContext.foodIndex] = foodData
+    } else {
+      // Adicionar novo
+      newDiet.week[currentDay][targetMeal].push(foodData)
+    }
+
+    setDietPlan(newDiet)
+    setIsModalOpen(false)
+  }
+
+  if (isLoading) {
+    return <div className="flex justify-center p-10"><Loader2 className="animate-spin h-8 w-8 text-red-600"/></div>
+  }
+
+  if (!dietPlan) return null
+
+  // Ordenar as refeições para exibição com base na ordem definida em mealTypes
+  const mealsOfDay = dietPlan.week[currentDay] || {}
+  const sortedMealKeys = Object.keys(mealsOfDay).sort(
+    (a, b) => mealTypes.indexOf(a) - mealTypes.indexOf(b)
+  )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
+      {/* CABEÇALHO DE MACROS */}
       <Card>
-        <CardHeader>
-          <CardTitle>{dietPlan.name}</CardTitle>
-          <CardDescription>Seu plano alimentar personalizado para atingir seus objetivos.</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div>
+            <CardTitle>{dietPlan.name}</CardTitle>
+            <CardDescription>Meta Diária: {dietPlan.dailyGoal.calories} kcal</CardDescription>
+          </div>
+          <Button onClick={handleSaveDiet} disabled={isSaving} className="bg-green-600 hover:bg-green-700">
+            {isSaving ? <Loader2 className="animate-spin mr-2 h-4 w-4"/> : <Save className="mr-2 h-4 w-4"/>}
+            Salvar Alterações
+          </Button>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-4">
-          <div className="flex items-center gap-4">
-            <Flame className="h-8 w-8 text-red-500" />
-            <div>
-              <p className="text-sm text-muted-foreground">Calorias</p>
-              <p className="text-lg font-bold">
-                {dailyTotals.calories} / {dietPlan.dailyGoal.calories} kcal
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <Beef className="h-8 w-8 text-orange-500" />
-            <div>
-              <p className="text-sm text-muted-foreground">Proteínas</p>
-              <p className="text-lg font-bold">
-                {dailyTotals.protein}g / {dietPlan.dailyGoal.protein}g
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <Wheat className="h-8 w-8 text-yellow-500" />
-            <div>
-              <p className="text-sm text-muted-foreground">Carboidratos</p>
-              <p className="text-lg font-bold">
-                {dailyTotals.carbs}g / {dietPlan.dailyGoal.carbs}g
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <Lollipop className="h-8 w-8 text-purple-500" />
-            <div>
-              <p className="text-sm text-muted-foreground">Gorduras</p>
-              <p className="text-lg font-bold">
-                {dailyTotals.fats}g / {dietPlan.dailyGoal.fats}g
-              </p>
-            </div>
-          </div>
+        <CardContent className="grid gap-4 grid-cols-2 md:grid-cols-4">
+          <MacroCard 
+            icon={<Flame className="h-6 w-6 text-red-500" />} 
+            label="Calorias" 
+            current={dailyTotals.calories} 
+            total={dietPlan.dailyGoal.calories} 
+            unit="kcal"
+          />
+          <MacroCard 
+            icon={<Beef className="h-6 w-6 text-orange-500" />} 
+            label="Proteínas" 
+            current={dailyTotals.protein} 
+            total={dietPlan.dailyGoal.protein} 
+            unit="g"
+          />
+          <MacroCard 
+            icon={<Wheat className="h-6 w-6 text-yellow-500" />} 
+            label="Carboidratos" 
+            current={dailyTotals.carbs} 
+            total={dietPlan.dailyGoal.carbs} 
+            unit="g"
+          />
+          <MacroCard 
+            icon={<Lollipop className="h-6 w-6 text-purple-500" />} 
+            label="Gorduras" 
+            current={dailyTotals.fats} 
+            total={dietPlan.dailyGoal.fats} 
+            unit="g"
+          />
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-center gap-4">
-        <Button variant="outline" size="icon" onClick={() => handleDayChange(-1)}>
+      {/* NAVEGAÇÃO DE DIAS */}
+      <div className="flex items-center justify-center gap-4 bg-muted p-2 rounded-lg">
+        <Button variant="ghost" size="icon" onClick={() => handleDayChange(-1)}>
           <ChevronLeft />
         </Button>
         <h2 className="text-2xl font-bold w-32 text-center">{currentDay}</h2>
-        <Button variant="outline" size="icon" onClick={() => handleDayChange(1)}>
+        <Button variant="ghost" size="icon" onClick={() => handleDayChange(1)}>
           <ChevronRight />
         </Button>
       </div>
 
-      
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        {Object.keys(meals).length > 0 ? (
-          Object.entries(meals).map(([mealName, foods]) => (
+      {/* LISTA DE REFEIÇÕES */}
+      <div className="grid gap-6 md:grid-cols-1 xl:grid-cols-2">
+        {sortedMealKeys.length > 0 ? (
+            sortedMealKeys.map((mealName) => (
             <Card key={mealName}>
-              <CardHeader>
-                <CardTitle>{mealName}</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between py-3 bg-muted/20">
+                <CardTitle className="text-lg">{mealName}</CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => openAddFoodModal(mealName)}>
+                    <PlusCircle className="h-4 w-4 mr-1"/> Add
+                </Button>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {foods.map((food: { name: string | number | bigint | boolean | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined> | null | undefined; qty: string | number | bigint | boolean | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined> | null | undefined }, index: React.Key | null | undefined) => (
-                  <div key={index} className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-gray-200 rounded-md overflow-hidden flex-shrink-0">
-                    </div>
+              <CardContent className="space-y-0 divide-y">
+                {mealsOfDay[mealName].map((food, index) => (
+                  <div key={index} className="flex items-center justify-between py-3">
                     <div>
                       <p className="font-semibold">{food.name}</p>
-                      <p className="text-sm text-muted-foreground">{food.qty}</p>
+                      <p className="text-sm text-muted-foreground">{food.qty} • {food.calories} kcal</p>
+                      <div className="flex gap-2 text-xs text-gray-400 mt-1">
+                        <span>P: {food.protein}g</span>
+                        <span>C: {food.carbs}g</span>
+                        <span>G: {food.fats}g</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openEditFoodModal(mealName, food, index)}>
+                            <Pencil className="h-4 w-4 text-blue-500"/>
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => deleteFood(mealName, index)}>
+                            <Trash2 className="h-4 w-4 text-red-500"/>
+                        </Button>
                     </div>
                   </div>
                 ))}
@@ -180,12 +325,108 @@ export function DietPage() {
             </Card>
           ))
         ) : (
-          <div className="md:col-span-2 xl:col-span-4 text-center py-10">
-            <p className="font-semibold">Dia Livre ou de Descanso</p>
-            <p className="text-sm text-muted-foreground">Nenhuma refeição planejada para hoje.</p>
+          <div className="col-span-full text-center py-10 border-dashed border-2 rounded-lg">
+            <p className="text-muted-foreground mb-4">Nenhuma refeição cadastrada para {currentDay}.</p>
+            <Button onClick={() => openAddFoodModal()}>
+                <PlusCircle className="mr-2 h-4 w-4"/> Adicionar Primeira Refeição
+            </Button>
           </div>
         )}
+        
+        {/* Botão para adicionar nova refeição se já houver outras */}
+        {sortedMealKeys.length > 0 && (
+            <Button variant="outline" className="h-full min-h-[100px] border-dashed" onClick={() => openAddFoodModal()}>
+                <PlusCircle className="mr-2 h-5 w-5"/> Adicionar Outra Refeição
+            </Button>
+        )}
       </div>
+
+      {/* MODAL ADICIONAR/EDITAR */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{editingContext?.foodIndex !== null ? "Editar Alimento" : "Adicionar Alimento"}</DialogTitle>
+            <DialogDescription>Insira os dados nutricionais.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {/* Seleção de Refeição (apenas se criando novo contexto geral ou editando sem contexto fixo) */}
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Refeição</Label>
+                <Select 
+                    value={selectedMealType} 
+                    onValueChange={setSelectedMealType} 
+                    disabled={!!editingContext} // Desabilita se já veio de um card específico
+                >
+                    <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {mealTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+            </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Nome</Label>
+              <Input 
+                value={foodForm.name} 
+                onChange={(e) => setFoodForm({...foodForm, name: e.target.value})} 
+                className="col-span-3" 
+                placeholder="Ex: Ovos Mexidos"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Qtd</Label>
+              <Input 
+                value={foodForm.qty} 
+                onChange={(e) => setFoodForm({...foodForm, qty: e.target.value})} 
+                className="col-span-3" 
+                placeholder="Ex: 2 unidades"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right text-red-500">Kcal</Label>
+              <Input type="number" value={foodForm.calories} onChange={(e) => setFoodForm({...foodForm, calories: Number(e.target.value)})} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+                <div>
+                    <Label className="text-xs text-orange-500">Proteína (g)</Label>
+                    <Input type="number" value={foodForm.protein} onChange={(e) => setFoodForm({...foodForm, protein: Number(e.target.value)})} />
+                </div>
+                <div>
+                    <Label className="text-xs text-yellow-500">Carbo (g)</Label>
+                    <Input type="number" value={foodForm.carbs} onChange={(e) => setFoodForm({...foodForm, carbs: Number(e.target.value)})} />
+                </div>
+                <div>
+                    <Label className="text-xs text-purple-500">Gordura (g)</Label>
+                    <Input type="number" value={foodForm.fats} onChange={(e) => setFoodForm({...foodForm, fats: Number(e.target.value)})} />
+                </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={saveFood}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
+}
+
+// Componente auxiliar para os cards de macro
+function MacroCard({ icon, label, current, total, unit }: { icon: any, label: string, current: number, total: number, unit: string }) {
+    const percentage = Math.min(100, (current / total) * 100) || 0
+    return (
+        <div className="flex flex-col items-center p-2 border rounded-lg bg-muted/50">
+            <div className="flex items-center gap-2 mb-2">
+                {icon}
+                <span className="text-sm font-medium">{label}</span>
+            </div>
+            <div className="text-xl font-bold mb-1">
+                {current} <span className="text-xs text-muted-foreground">/ {total}{unit}</span>
+            </div>
+            <div className="w-full h-2 bg-gray-200 rounded-full mt-1 overflow-hidden">
+                <div className="h-full bg-primary transition-all" style={{ width: `${percentage}%` }}></div>
+            </div>
+        </div>
+    )
 }

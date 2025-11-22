@@ -31,16 +31,27 @@ public class SecurityConfig {
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
 
-                        // --- CORREÇÃO AQUI ---
-                        // Adicione estas linhas para garantir que funcione com ou sem "/api"
+                        // --- ÁREA DE POSTS ---
                         .requestMatchers("/api/posts/**").permitAll()
-                        .requestMatchers("/posts/**").permitAll()  // <--- ADICIONE ISSO
+                        .requestMatchers("/posts/**").permitAll()
 
+                        // --- ÁREA DE USUÁRIOS ---
                         .requestMatchers("/api/users/**").permitAll()
-                        .requestMatchers("/users/**").permitAll()  // <--- ADICIONE ISSO POR GARANTIA
+                        .requestMatchers("/users/**").permitAll()
 
+                        // --- ÁREA DE FUNCIONALIDADES (DASHBOARD, TREINO, DIETA, DESAFIOS) ---
                         .requestMatchers("/api/dashboard/**").permitAll()
+
+                        .requestMatchers("/api/groups/**").permitAll()
+
+                        // Libera a rota de TREINO
                         .requestMatchers("/api/workout/**").permitAll()
+
+                        // Libera a rota de DIETA (Nova)
+                        .requestMatchers("/api/diet/**").permitAll()
+
+                        // Libera a rota de DESAFIOS (Correção do erro 403)
+                        .requestMatchers("/api/challenges/**").permitAll()
 
                         .anyRequest().authenticated()
                 );
@@ -52,12 +63,16 @@ public class SecurityConfig {
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
+        // Permitir o frontend (ajuste se a porta mudar)
         configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000"));
 
+        // Permitir todos os métodos
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"));
 
+        // Permitir todos os headers
         configuration.setAllowedHeaders(Arrays.asList("*"));
 
+        // Permitir credenciais (cookies/auth headers)
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

@@ -1,8 +1,10 @@
 package com.dagym.backend.api.services;
 
+import com.dagym.backend.api.domain.dto.UserProfileDTO;
 import com.dagym.backend.api.domain.dto.UserSearchDTO;
 import com.dagym.backend.api.domain.models.User;
 import com.dagym.backend.api.repository.UserRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -62,7 +64,7 @@ public class UserService {
     }
 
     private UserSearchDTO convertToDTO(User user) {
-        return new UserSearchDTO(user.getId(), user.getNome(), user.getUsername());
+        return new UserSearchDTO(user.getId(), user.getNome(), user.getUsername(), user.getAvatarUrl());
     }
 
     public Optional<User> getUser(Long id) {
@@ -101,6 +103,63 @@ public class UserService {
             user.setWorkout(profileData.getWorkout());
             return userRepository.save(user);
         }).orElseThrow(() -> new RuntimeException("Usuário com id " + id + " não encontrado"));
+    }
+
+    @Transactional
+    public void toggleFollow(Long followerId, Long followedId) {
+        if (followerId.equals(followedId)) return;
+
+        User follower = userRepository.findById(followerId).orElseThrow();
+        User followed = userRepository.findById(followedId).orElseThrow();
+
+        if (follower.getFollowing().contains(followed)) {
+            follower.getFollowing().remove(followed);
+            followed.getFollowers().remove(follower);
+        } else {
+            follower.getFollowing().add(followed);
+            followed.getFollowers().add(follower);
+        }
+        userRepository.save(follower);
+    }
+
+    public UserProfileDTO getUserProfile(Long profileId, Long currentUserId) {
+        User profileUser = userRepository.findById(profileId)
+                .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+
+        boolean isFollowing = false;
+        if (currentUserId != null) {
+            isFollowing = profileUser.getFollowers().stream()
+                    .anyMatch(u -> u.getId().equals(currentUserId));
+        }
+
+        return new UserProfileDTO(
+                profileUser.getId(),
+                profileUser.getNome(),
+                profileUser.getUsername(),
+                profileUser.getDescription(),
+                profileUser.getAvatarUrl(),
+                profileUser.getWeight(),
+                profileUser.getHeight(),
+                profileUser.getDiet(),
+                profileUser.getWorkout(),
+                profileUser.getFollowers().size(),
+                profileUser.getFollowing().size(),
+                profileUser.getPosts().size(),
+                isFollowing
+        );
+    }
+
+    // Listar seguidores/seguindo para o modal
+    public List<UserSearchDTO> getFollowers(Long userId) {
+        return userRepository.findById(userId).orElseThrow().getFollowers().stream()
+                .map(u -> new UserSearchDTO(u.getId(), u.getNome(), u.getUsername(), u.getAvatarUrl()))
+                .collect(Collectors.toList());
+    }
+
+    public List<UserSearchDTO> getFollowing(Long userId) {
+        return userRepository.findById(userId).orElseThrow().getFollowing().stream()
+                .map(u -> new UserSearchDTO(u.getId(), u.getNome(), u.getUsername(), u.getAvatarUrl()))
+                .collect(Collectors.toList());
     }
 
     public void deleteUser(Long id) {

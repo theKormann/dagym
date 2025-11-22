@@ -30,6 +30,7 @@ import { HomePage } from "./home"
 import { WorkoutPage } from "./workout"
 import { DietPage } from "./diet"
 import { ChallengesPage } from "./challenges"
+import { CommunityPage } from "./community"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 const UPLOAD_URL = "http://localhost:8080/uploads"; // Adicionado para construir URLs de imagem
@@ -62,14 +63,14 @@ interface UserSearchDTO {
     id: number;
     nome: string;
     username: string;
-    avatarUrl?: string | null; 
+    avatarUrl?: string | null;
 }
 
 export function DesignaliCreative() {
     const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
     const [activeTab, setActiveTab] = useState("home");
-    
-    const [sidebarOpen, setSidebarOpen] = useState(false); 
+
+    const [sidebarOpen, setSidebarOpen] = useState(false);
     const [popoverOpen, setPopoverOpen] = useState(false);
     const [user, setUser] = useState<User | null>(null);
 
@@ -116,14 +117,14 @@ export function DesignaliCreative() {
             setIsSuggestionsLoading(true);
             try {
                 const res = await fetch(`${API_URL}/api/users`);
-                
+
                 if (res.ok) {
                     const data: UserSearchDTO[] = await res.json();
                     const currentUser = user?.username;
                     const filtered = data
                         .filter(u => u.username !== currentUser)
                         .slice(0, 5);
-                        
+
                     setSuggestedUsers(filtered);
                 }
             } catch (error) {
@@ -174,10 +175,10 @@ export function DesignaliCreative() {
 
     return (
         <div className="relative min-h-screen bg-background flex">
-            
+
             {/* ... SIDEBAR CODE ... (Sem alterações lógicas, apenas estilo) */}
             {sidebarOpen && (
-                <div 
+                <div
                     className="fixed inset-0 z-40 bg-black/50 md:hidden block"
                     onClick={() => setSidebarOpen(false)}
                 />
@@ -194,8 +195,8 @@ export function DesignaliCreative() {
                         <div className="relative w-40 h-12">
                             <Image src="/logo-dagym.png" alt="DaGym Logo" fill className="object-contain" priority />
                         </div>
-                        
-                        <Button 
+
+                        <Button
                             variant="ghost" size="icon" className="md:hidden absolute right-2 top-5"
                             onClick={() => setSidebarOpen(false)}
                         >
@@ -217,15 +218,15 @@ export function DesignaliCreative() {
                                     key={item.title}
                                     onClick={() => {
                                         setActiveTab(item.value);
-                                        setSidebarOpen(false); 
+                                        setSidebarOpen(false);
                                         if (item.value === 'perfil') {
                                             setViewedProfileId(null);
                                         }
                                     }}
                                     className={cn(
                                         "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
-                                        activeTab === item.value 
-                                            ? "bg-[#8e0501] text-white shadow-md shadow-red-200" 
+                                        activeTab === item.value
+                                            ? "bg-[#8e0501] text-white shadow-md shadow-red-200"
                                             : "text-muted-foreground hover:bg-muted hover:text-foreground"
                                     )}
                                 >
@@ -235,19 +236,19 @@ export function DesignaliCreative() {
                             ))}
                         </div>
                     </ScrollArea>
-                    
+
                     <div className="border-t p-4">
-                         <p className="text-xs text-center text-muted-foreground">© 2024 DaGym App</p>
+                        <p className="text-xs text-center text-muted-foreground">© 2024 DaGym App</p>
                     </div>
                 </div>
             </aside>
 
             {/* --- CONTEÚDO PRINCIPAL --- */}
             <div className="flex-1 flex flex-col min-h-screen w-full overflow-hidden">
-                
+
                 {/* --- HEADER --- */}
                 <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:px-6 gap-4">
-                    
+
                     <div className="flex items-center justify-start w-10 md:w-auto">
                         <Button variant="ghost" size="icon" className="md:hidden -ml-2" onClick={() => setSidebarOpen(true)}>
                             <Menu className="h-6 w-6" />
@@ -287,8 +288,8 @@ export function DesignaliCreative() {
                                                     {/* CORREÇÃO: Avatar na busca */}
                                                     <Avatar className="h-8 w-8">
                                                         {u.avatarUrl && (
-                                                            <AvatarImage 
-                                                                src={`${UPLOAD_URL}/${u.avatarUrl}`} 
+                                                            <AvatarImage
+                                                                src={`${UPLOAD_URL}/${u.avatarUrl}`}
                                                                 className="object-cover"
                                                             />
                                                         )}
@@ -320,9 +321,9 @@ export function DesignaliCreative() {
                             {/* CORREÇÃO: Avatar do cabeçalho (Usuário Logado) */}
                             <Avatar className="h-9 w-9 border border-border">
                                 {user?.avatarUrl && (
-                                    <AvatarImage 
-                                        src={`${UPLOAD_URL}/${user.avatarUrl}`} 
-                                        className="object-cover" 
+                                    <AvatarImage
+                                        src={`${UPLOAD_URL}/${user.avatarUrl}`}
+                                        className="object-cover"
                                     />
                                 )}
                                 <AvatarFallback className="bg-red-100 text-red-700">
@@ -336,7 +337,7 @@ export function DesignaliCreative() {
                 {/* --- MAIN AREA --- */}
                 <main className="flex-1 p-0 md:p-6 lg:p-8 overflow-x-hidden bg-slate-50/50">
                     <Tabs defaultValue="home" value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
-                        
+
                         {/* Tabs List Mobile */}
                         <div className="md:hidden w-full overflow-x-auto pb-2 no-scrollbar px-4 mt-4">
                             <TabsList className="w-auto inline-flex h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground">
@@ -360,7 +361,7 @@ export function DesignaliCreative() {
                             >
                                 <TabsContent value="home" className="m-0">
                                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                                        
+
                                         <div className="lg:col-span-8 w-full">
                                             <HomePage />
                                         </div>
@@ -370,7 +371,7 @@ export function DesignaliCreative() {
                                             const isSearching = searchTerm.trim() !== "";
                                             const displayList = isSearching ? searchResults : suggestedUsers;
                                             const isLoading = isSearching ? isSearchLoading : isSuggestionsLoading;
-                                            
+
                                             return (
                                                 <div className="hidden lg:block lg:col-span-4 sticky top-6">
                                                     {user && (
@@ -378,8 +379,8 @@ export function DesignaliCreative() {
                                                             <div className="flex items-center gap-3">
                                                                 <Avatar className="h-12 w-12 border">
                                                                     {user.avatarUrl && (
-                                                                        <AvatarImage 
-                                                                            src={`${UPLOAD_URL}/${user.avatarUrl}`} 
+                                                                        <AvatarImage
+                                                                            src={`${UPLOAD_URL}/${user.avatarUrl}`}
                                                                             className="object-cover"
                                                                         />
                                                                     )}
@@ -421,8 +422,8 @@ export function DesignaliCreative() {
                                                                         {/* CORREÇÃO: Avatar nas Sugestões */}
                                                                         <Avatar className="h-9 w-9">
                                                                             {u.avatarUrl && (
-                                                                                <AvatarImage 
-                                                                                    src={`${UPLOAD_URL}/${u.avatarUrl}`} 
+                                                                                <AvatarImage
+                                                                                    src={`${UPLOAD_URL}/${u.avatarUrl}`}
                                                                                     className="object-cover"
                                                                                 />
                                                                             )}
@@ -431,8 +432,8 @@ export function DesignaliCreative() {
                                                                             </AvatarFallback>
                                                                         </Avatar>
                                                                         <div className="flex flex-col">
-                                                                            <span 
-                                                                                className="text-sm font-semibold leading-none hover:underline cursor-pointer" 
+                                                                            <span
+                                                                                className="text-sm font-semibold leading-none hover:underline cursor-pointer"
                                                                                 onClick={() => handleProfileVisit(u.id)}
                                                                             >
                                                                                 {u.username}
@@ -442,8 +443,8 @@ export function DesignaliCreative() {
                                                                             </span>
                                                                         </div>
                                                                     </div>
-                                                                    <Button 
-                                                                        variant="ghost" 
+                                                                    <Button
+                                                                        variant="ghost"
                                                                         className="text-xs text-blue-500 hover:text-blue-700 hover:bg-transparent font-semibold p-0 h-auto"
                                                                     >
                                                                         Seguir
@@ -482,11 +483,7 @@ export function DesignaliCreative() {
                                     />
                                 </TabsContent>
                                 <TabsContent value="comunidade" className="m-0">
-                                    <div className="flex flex-col items-center justify-center py-20 text-center">
-                                        <Users className="h-16 w-16 text-muted-foreground mb-4 opacity-20" />
-                                        <h3 className="text-lg font-semibold">Comunidade</h3>
-                                        <p className="text-muted-foreground">Em breve você poderá interagir com grupos aqui.</p>
-                                    </div>
+                                    <CommunityPage />
                                 </TabsContent>
                             </motion.div>
                         </AnimatePresence>

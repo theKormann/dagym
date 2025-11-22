@@ -24,6 +24,7 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { PostCard } from "./post/postCard"
 import { PostModal } from "./post/PostModal"
 
+
 // --- TIPOS (Frontend) ---
 export type Comment = {
   id: string

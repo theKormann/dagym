@@ -1,5 +1,6 @@
 package com.dagym.backend.api.controller;
 
+import com.dagym.backend.api.domain.dto.UserProfileDTO;
 import com.dagym.backend.api.domain.dto.UserSearchDTO;
 import com.dagym.backend.api.domain.models.User;
 import com.dagym.backend.api.services.UserService;
@@ -21,6 +22,27 @@ public class UserController {
     public ResponseEntity<List<UserSearchDTO>> getSuggestions() {
         List<UserSearchDTO> suggestions = userService.getSuggestedUsers();
         return ResponseEntity.ok(suggestions);
+    }
+
+    @GetMapping("/{id}/profile")
+    public ResponseEntity<UserProfileDTO> getProfile(@PathVariable Long id, @RequestParam(required = false) Long currentUserId) {
+        return ResponseEntity.ok(userService.getUserProfile(id, currentUserId));
+    }
+
+    @PostMapping("/{id}/follow")
+    public ResponseEntity<Void> toggleFollow(@PathVariable Long id, @RequestParam Long followerId) {
+        userService.toggleFollow(followerId, id); // followerId segue id
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{id}/followers")
+    public ResponseEntity<List<UserSearchDTO>> getFollowers(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.getFollowers(id));
+    }
+
+    @GetMapping("/{id}/following")
+    public ResponseEntity<List<UserSearchDTO>> getFollowing(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.getFollowing(id));
     }
 
     @PostMapping("/{id}/avatar")
