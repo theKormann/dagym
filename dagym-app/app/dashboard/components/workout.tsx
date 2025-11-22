@@ -275,7 +275,7 @@ export function WorkoutPage() {
   const handleOpenModal = (index: number | null) => {
     if (index === null) {
       setEditingExerciseIndex(null)
-      setModalFormData({ name: "", sets: "", reps: "", image: "/workouts/default.jpg" })
+      setModalFormData({ name: "", sets: "", reps: "", image: "/execs/custom.png" })
     } else {
       const exercise = userWorkout?.weeklySchedule[selectedDay][index]
       if (exercise) {
