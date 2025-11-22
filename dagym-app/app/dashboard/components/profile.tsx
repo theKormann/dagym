@@ -15,7 +15,12 @@ import {
     Copy,
     UserPlus,
     UserCheck,
-    Users
+    Users,
+    PlusCircle,
+    Play,
+    ChevronLeft,
+    ChevronRight,
+    Trash2 // Ícone de lixeira importado
 } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -62,26 +67,23 @@ interface BackendPostResponse {
     commentCount: number;
 }
 
-// Interface User atualizada com dados de Follow
 interface User {
     id: number;
     nome: string;
     username: string;
-    email?: string; // Opcional pois vem do DTO de perfil as vezes sem email
+    email?: string;
     description?: string;
     weight?: number;
     height?: number;
     diet?: string;
     workout?: string;
     avatarUrl?: string;
-    // Novos campos
     followersCount?: number;
     followingCount?: number;
     postCount?: number;
     isFollowing?: boolean;
 }
 
-// Interface simples para listas de usuários (Modal)
 interface UserSimple {
     id: number;
     nome: string;
@@ -95,6 +97,14 @@ interface Post {
     caption: string;
     likes: number;
     comments: number;
+}
+
+// Interface do Story
+interface Story {
+    id: number;
+    mediaUrl: string;
+    createdAt: string;
+    expiresAt: string;
 }
 
 interface ProfilePageProps {
@@ -131,6 +141,7 @@ const weekDays = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "
 export function ProfilePage({ profileId }: ProfilePageProps) {
     const router = useRouter();
 
+    // --- Estados Principais ---
     const [user, setUser] = useState<User | null>(null)
     const [loggedUser, setLoggedUser] = useState<User | null>(null)
     const [isOwner, setIsOwner] = useState(false)
@@ -138,40 +149,47 @@ export function ProfilePage({ profileId }: ProfilePageProps) {
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
-    // UI States
+    // --- UI States ---
     const [activeTab, setActiveTab] = useState<'posts' | 'workout'>('posts')
     const [selectedWorkoutDay, setSelectedWorkoutDay] = useState(weekDays[0])
     const [parsedWorkout, setParsedWorkout] = useState<WorkoutPlan | null>(null)
 
-    // Form States
+    // --- Form States ---
     const [weight, setWeight] = useState(0)
     const [height, setHeight] = useState(0)
     const [description, setDescription] = useState("")
     const [diet, setDiet] = useState("")
     const [workout, setWorkout] = useState("")
-    const [newPassword, setNewPassword] = useState("")
     const [postCaption, setPostCaption] = useState("")
     
-    // Upload states
+    // --- Upload states ---
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const avatarInputRef = useRef<HTMLInputElement>(null);
+    const storyInputRef = useRef<HTMLInputElement>(null);
     
-    // Loading states
+    // --- Loading states ---
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    const [isUploadingStory, setIsUploadingStory] = useState(false);
     const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
-    const [isUpdatingCreds, setIsUpdatingCreds] = useState(false)
     const [isCreatingPost, setIsCreatingPost] = useState(false)
     const [isMirroring, setIsMirroring] = useState(false)
     const [isFollowingLoading, setIsFollowingLoading] = useState(false);
 
-    // Modal States (Followers/Following)
+    // --- Modal States (Followers) ---
     const [showUserListModal, setShowUserListModal] = useState(false);
     const [userListTitle, setUserListTitle] = useState("");
     const [userList, setUserList] = useState<UserSimple[]>([]);
     const [isUserListLoading, setIsUserListLoading] = useState(false);
 
+    // --- STATES DE STORY ---
+    const [stories, setStories] = useState<Story[]>([]);
+    const [showStoryViewer, setShowStoryViewer] = useState(false);
+    const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
+    const [isDeletingStory, setIsDeletingStory] = useState(false);
+
+    // --- FETCH DATA ---
     useEffect(() => {
         const storedUserStr = localStorage.getItem('dagym_user');
         if (!storedUserStr) { router.push('/login'); return; }
@@ -189,13 +207,10 @@ export function ProfilePage({ profileId }: ProfilePageProps) {
         const fetchProfileData = async () => {
             try {
                 setIsLoading(true)
-                // Nota: Endpoint alterado para suportar DTO de perfil com status de follow
-                // Requer que o backend tenha o endpoint /api/users/{id}/profile?currentUserId={id}
+                // 1. Fetch User Profile
                 const userRes = await fetch(`${API_URL}/api/users/${targetUserId}/profile?currentUserId=${currentLoggedUser.id}`)
                 
                 let userData: User;
-                
-                // Fallback se o endpoint novo não existir, usa o dashboard antigo
                 if (!userRes.ok && userRes.status === 404) {
                      const fallbackRes = await fetch(`${API_URL}/api/dashboard/${targetUserId}`);
                      if (!fallbackRes.ok) throw new Error("Falha ao buscar perfil");
@@ -207,8 +222,6 @@ export function ProfilePage({ profileId }: ProfilePageProps) {
                 }
                 
                 setUser(userData)
-
-                // Preencher forms
                 setWeight(userData.weight || 0)
                 setHeight(userData.height || 0)
                 setDescription(userData.description || "")
@@ -220,6 +233,7 @@ export function ProfilePage({ profileId }: ProfilePageProps) {
                     catch (e) { setParsedWorkout(null); }
                 }
 
+                // 2. Fetch Posts
                 const postsRes = await fetch(`${API_URL}/api/posts`);
                 if (postsRes.ok) {
                     const allBackendPosts: BackendPostResponse[] = await postsRes.json();
@@ -227,6 +241,13 @@ export function ProfilePage({ profileId }: ProfilePageProps) {
                         .filter(post => post.author.id === targetUserId)
                         .map(mapBackendToProfilePost);
                     setPosts(userPosts);
+                }
+
+                // 3. Fetch Stories
+                const storiesRes = await fetch(`${API_URL}/api/stories/user/${targetUserId}`);
+                if (storiesRes.ok) {
+                    const storiesData = await storiesRes.json();
+                    setStories(storiesData);
                 }
 
             } catch (err) {
@@ -244,56 +265,35 @@ export function ProfilePage({ profileId }: ProfilePageProps) {
         return { value: bmiValue.toFixed(1), status: getBmiStatus(bmiValue) }
     }, [weight, height])
 
-    // --- Handlers ---
-
+    // --- HANDLERS DE SEGUIR ---
     const handleFollowToggle = async () => {
         if (!user || !loggedUser) return;
-        
         setIsFollowingLoading(true);
         try {
-            const res = await fetch(`${API_URL}/api/users/${user.id}/follow?followerId=${loggedUser.id}`, {
-                method: "POST"
-            });
-            
+            const res = await fetch(`${API_URL}/api/users/${user.id}/follow?followerId=${loggedUser.id}`, { method: "POST" });
             if (!res.ok) throw new Error("Falha ao seguir");
-
-            // Atualização otimista da UI
             setUser(prev => {
                 if (!prev) return null;
                 const newIsFollowing = !prev.isFollowing;
                 const newFollowersCount = (prev.followersCount || 0) + (newIsFollowing ? 1 : -1);
                 return { ...prev, isFollowing: newIsFollowing, followersCount: newFollowersCount };
             });
-
-        } catch (error) {
-            console.error(error);
-            alert("Erro ao alterar status de seguir.");
-        } finally {
-            setIsFollowingLoading(false);
-        }
+        } catch (error) { console.error(error); alert("Erro ao alterar status de seguir."); } finally { setIsFollowingLoading(false); }
     };
 
     const openUserList = async (type: 'followers' | 'following') => {
         if (!user) return;
-        
         setUserListTitle(type === 'followers' ? 'Seguidores' : 'Seguindo');
         setShowUserListModal(true);
         setIsUserListLoading(true);
         setUserList([]);
-
         try {
             const res = await fetch(`${API_URL}/api/users/${user.id}/${type}`);
-            if (res.ok) {
-                const data = await res.json();
-                setUserList(data);
-            }
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setIsUserListLoading(false);
-        }
+            if (res.ok) { const data = await res.json(); setUserList(data); }
+        } catch (error) { console.error(error); } finally { setIsUserListLoading(false); }
     };
 
+    // --- HANDLERS DE IMAGEM/POST ---
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
          const file = event.target.files?.[0];
          if (file) { setSelectedFile(file); setPreviewUrl(URL.createObjectURL(file)); }
@@ -310,20 +310,99 @@ export function ProfilePage({ profileId }: ProfilePageProps) {
             const res = await fetch(`${API_URL}/api/users/${user.id}/avatar`, { method: "POST", body: formData });
             if (!res.ok) throw new Error();
             const updatedUser: User = await res.json();
-            // Mantém o status de follow que veio do DTO
             setUser(prev => prev ? ({...updatedUser, isFollowing: prev.isFollowing, followersCount: prev.followersCount, followingCount: prev.followingCount}) : updatedUser);
             if (isOwner) { localStorage.setItem('dagym_user', JSON.stringify(updatedUser)); window.dispatchEvent(new Event("storage")); }
             alert("Foto atualizada!");
         } catch (err) { alert("Erro ao atualizar foto"); } finally { setIsUploadingAvatar(false); if (avatarInputRef.current) avatarInputRef.current.value = ""; }
     };
 
+    // --- HANDLERS DE STORY (UPLOAD, NAV, DELETE) ---
+    const handleStoryUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !user) return;
+
+        setIsUploadingStory(true);
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const res = await fetch(`${API_URL}/api/stories/user/${user.id}`, { method: "POST", body: formData });
+            if (!res.ok) throw new Error("Falha ao enviar story");
+            const newStory: Story = await res.json();
+            setStories(prev => [...prev, newStory]);
+            alert("Story publicado!");
+        } catch (err) {
+            console.error(err);
+            alert("Erro ao publicar story.");
+        } finally {
+            setIsUploadingStory(false);
+            if (storyInputRef.current) storyInputRef.current.value = "";
+        }
+    }
+
+    const handleDeleteStory = async () => {
+        if (!user || stories.length === 0) return;
+        const storyToDelete = stories[currentStoryIndex];
+
+        if (!confirm("Tem certeza que deseja excluir este story?")) return;
+
+        setIsDeletingStory(true);
+        try {
+            // Certifique-se que o backend espera DELETE /api/stories/{id}?userId={id}
+            const res = await fetch(`${API_URL}/api/stories/${storyToDelete.id}?userId=${user.id}`, {
+                method: "DELETE"
+            });
+
+            if (!res.ok) throw new Error("Falha ao excluir");
+
+            // Atualiza lista local
+            const updatedStories = stories.filter(s => s.id !== storyToDelete.id);
+            setStories(updatedStories);
+
+            if (updatedStories.length === 0) {
+                setShowStoryViewer(false);
+            } else if (currentStoryIndex >= updatedStories.length) {
+                setCurrentStoryIndex(updatedStories.length - 1);
+            }
+
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao deletar story.");
+        } finally {
+            setIsDeletingStory(false);
+        }
+    };
+
+    const openStoryViewer = () => {
+        if (stories.length > 0) {
+            setCurrentStoryIndex(0);
+            setShowStoryViewer(true);
+        }
+    }
+
+    const nextStory = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (currentStoryIndex < stories.length - 1) {
+            setCurrentStoryIndex(prev => prev + 1);
+        } else {
+            setShowStoryViewer(false); 
+        }
+    }
+
+    const prevStory = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (currentStoryIndex > 0) {
+            setCurrentStoryIndex(prev => prev - 1);
+        }
+    }
+
+    // --- HANDLERS DE UPDATE PERFIL & POST ---
     const handleUpdateProfile = async (e: FormEvent) => {
         e.preventDefault(); if(!user) return; setIsUpdatingProfile(true);
         try {
             const res = await fetch(`${API_URL}/api/dashboard/${user.id}/profile`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ weight, height, description, diet, workout }) });
             if(!res.ok) throw new Error(); 
             const u = await res.json(); 
-            // Preserva campos de visualização
             setUser(prev => prev ? { ...u, avatarUrl: prev.avatarUrl, isFollowing: prev.isFollowing, followersCount: prev.followersCount, followingCount: prev.followingCount } : u);
             if(isOwner) localStorage.setItem('dagym_user', JSON.stringify(u)); alert("Perfil salvo!");
         } catch(e) { alert("Erro ao salvar"); } finally { setIsUpdatingProfile(false); }
@@ -354,10 +433,12 @@ export function ProfilePage({ profileId }: ProfilePageProps) {
         } catch (err) { alert("Erro ao copiar."); } finally { setIsMirroring(false); }
     }
 
+    // --- RENDER ---
     if (isLoading) return <div className="flex justify-center h-64 items-center"><Loader2 className="animate-spin text-red-800" /></div>
     if (error || !user) return <p className="text-center text-red-600">{error || "Usuário não encontrado"}</p>
 
     const dailyExercises = parsedWorkout?.weeklySchedule[selectedWorkoutDay] || [];
+    const hasStories = stories.length > 0;
 
     return (
         <>
@@ -365,21 +446,55 @@ export function ProfilePage({ profileId }: ProfilePageProps) {
             <Card className="mb-6">
                 <CardContent className="p-6 flex flex-col sm:flex-row items-center gap-6">
                     
-                    {/* Avatar */}
-                    <div className="relative group">
-                        <Avatar className="h-28 w-28 border-4 border-red-800">
-                            {user.avatarUrl && <AvatarImage src={`${UPLOAD_URL}/${user.avatarUrl}`} className="object-cover"/>}
-                            <AvatarFallback className="text-4xl">{user.username.substring(0, 2).toUpperCase()}</AvatarFallback>
-                        </Avatar>
+                    {/* --- ÁREA DO AVATAR COM STORIES --- */}
+                    <div className="relative flex flex-col items-center">
+                        {/* Anel de Story (Gradiente Vinho) */}
+                        <div 
+                            className={cn(
+                                "relative p-[3px] rounded-full cursor-pointer transition-all",
+                                hasStories ? "bg-gradient-to-tr from-red-900 via-rose-800 to-red-600 hover:scale-105" : "bg-transparent border-4 border-transparent"
+                            )}
+                            onClick={hasStories ? openStoryViewer : undefined}
+                        >
+                            <div className="bg-white rounded-full p-[2px]">
+                                <Avatar className="h-28 w-28 border-2 border-white">
+                                    {user.avatarUrl && <AvatarImage src={`${UPLOAD_URL}/${user.avatarUrl}`} className="object-cover"/>}
+                                    <AvatarFallback className="text-4xl">{user.username.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                </Avatar>
+                            </div>
+                        </div>
+
+                        {/* Botão Alterar Foto (Câmera) */}
                         {isOwner && (
-                            <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => avatarInputRef.current?.click()}>
-                                {isUploadingAvatar ? <Loader2 className="h-8 w-8 text-white animate-spin" /> : <Camera className="h-8 w-8 text-white" />}
+                            <div 
+                                className="absolute top-0 right-0 bg-black/60 rounded-full p-1.5 cursor-pointer hover:bg-black/80 transition-colors z-20"
+                                onClick={(e) => { e.stopPropagation(); avatarInputRef.current?.click(); }}
+                                title="Alterar Foto de Perfil"
+                            >
+                                {isUploadingAvatar ? <Loader2 className="h-4 w-4 text-white animate-spin" /> : <Camera className="h-4 w-4 text-white" />}
                             </div>
                         )}
-                         <input type="file" ref={avatarInputRef} onChange={handleAvatarChange} className="hidden" accept="image/*" />
+
+                        {/* Botão Adicionar Story (+) - Vinho */}
+                        {isOwner && (
+                            <div 
+                                className="absolute bottom-0 right-2 bg-red-800 rounded-full cursor-pointer hover:bg-red-900 transition-colors z-20 border-2 border-white"
+                                onClick={(e) => { e.stopPropagation(); storyInputRef.current?.click(); }}
+                                title="Adicionar Story"
+                            >
+                                {isUploadingStory ? (
+                                    <Loader2 className="h-6 w-6 text-white animate-spin p-1" />
+                                ) : (
+                                    <PlusCircle className="h-6 w-6 text-white" />
+                                )}
+                            </div>
+                        )}
+
+                        <input type="file" ref={avatarInputRef} onChange={handleAvatarChange} className="hidden" accept="image/*" />
+                        <input type="file" ref={storyInputRef} onChange={handleStoryUpload} className="hidden" accept="image/*,video/*" />
                     </div>
 
-                    {/* Info */}
+                    {/* Info do Usuário */}
                     <div className="text-center sm:text-left flex-1 w-full">
                         <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between w-full gap-4">
                             <div>
@@ -388,7 +503,6 @@ export function ProfilePage({ profileId }: ProfilePageProps) {
                                 {user.description && <p className="mt-2 text-sm max-w-lg">{user.description}</p>}
                             </div>
                             
-                            {/* Botão de Seguir / Editar */}
                             <div className="mt-2 sm:mt-0">
                                 {isOwner ? (
                                     <Button variant="outline" className="gap-2" disabled>
@@ -413,7 +527,7 @@ export function ProfilePage({ profileId }: ProfilePageProps) {
                             </div>
                         </div>
                         
-                        {/* Stats */}
+                        {/* Estatísticas Clicáveis */}
                         <div className="mt-6 flex justify-center sm:justify-start gap-8">
                             <div className="text-center">
                                 <p className="font-bold text-lg">{posts.length}</p>
@@ -432,9 +546,9 @@ export function ProfilePage({ profileId }: ProfilePageProps) {
                 </CardContent>
             </Card>
 
+            {/* Layout Principal (Abas + Lateral) */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 <div className={isOwner ? "lg:col-span-3 space-y-6" : "lg:col-span-4 space-y-6"}>
-                    {/* Tabs */}
                     <div className="flex space-x-2 mb-4">
                         <Button variant={activeTab === 'posts' ? 'default' : 'outline'} onClick={() => setActiveTab('posts')} className="gap-2">
                             <ImageIcon className="w-4 h-4"/> Publicações
@@ -444,7 +558,7 @@ export function ProfilePage({ profileId }: ProfilePageProps) {
                         </Button>
                     </div>
 
-                    {/* CONTEÚDO: POSTS */}
+                    {/* Tab: Posts */}
                     {activeTab === 'posts' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             {isOwner && (
@@ -471,29 +585,13 @@ export function ProfilePage({ profileId }: ProfilePageProps) {
                                     </Card>
                                 </form>
                             )}
-                            
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {posts.length > 0 ? (
-                                    posts.map((post) => (
-                                        <Card key={post.id} className="overflow-hidden">
-                                            {post.imageUrl && <img src={post.imageUrl} alt="Post" className="aspect-video w-full object-cover" />}
-                                            <CardContent className="p-4">
-                                                <p className="text-sm mb-2">{post.caption}</p>
-                                                <div className="flex items-center gap-4 text-muted-foreground text-sm">
-                                                    <span className="flex items-center gap-1"><Heart className="h-4 w-4" /> {post.likes}</span>
-                                                    <span className="flex items-center gap-1"><MessageSquare className="h-4 w-4" /> {post.comments}</span>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    ))
-                                ) : (
-                                    <p className="text-muted-foreground col-span-full text-center py-8">Nenhuma publicação encontrada.</p>
-                                )}
+                                {posts.length > 0 ? posts.map((post) => (<Card key={post.id} className="overflow-hidden">{post.imageUrl && <img src={post.imageUrl} alt="Post" className="aspect-video w-full object-cover" />}<CardContent className="p-4"><p className="text-sm mb-2">{post.caption}</p><div className="flex items-center gap-4 text-muted-foreground text-sm"><span className="flex items-center gap-1"><Heart className="h-4 w-4" /> {post.likes}</span><span className="flex items-center gap-1"><MessageSquare className="h-4 w-4" /> {post.comments}</span></div></CardContent></Card>)) : <p className="text-muted-foreground col-span-full text-center py-8">Nenhuma publicação encontrada.</p>}
                             </div>
                         </div>
                     )}
 
-                    {/* CONTEÚDO: TREINO */}
+                    {/* Tab: Workout */}
                     {activeTab === 'workout' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             {parsedWorkout ? (
@@ -511,41 +609,16 @@ export function ProfilePage({ profileId }: ProfilePageProps) {
                                         )}
                                     </CardHeader>
                                     <CardContent>
-                                        <div className="flex items-center justify-start space-x-2 mb-6 overflow-x-auto pb-2">
-                                            {weekDays.map((day) => (
-                                                <Button key={day} variant={selectedWorkoutDay === day ? "default" : "outline"} size="sm" 
-                                                    className={cn("rounded-lg flex-shrink-0", selectedWorkoutDay === day && "bg-red-800 hover:bg-red-900")}
-                                                    onClick={() => setSelectedWorkoutDay(day)}
-                                                >
-                                                    {day.substring(0, 3)}
-                                                </Button>
-                                            ))}
-                                        </div>
-                                        <div className="space-y-4">
-                                            {dailyExercises.length > 0 ? (
-                                                dailyExercises.map((exercise, index) => (
-                                                    <div key={index} className="flex items-center gap-4 p-3 bg-muted rounded-lg border">
-                                                        <div className="w-16 h-16 bg-gray-200 rounded-md overflow-hidden flex-shrink-0">
-                                                            {exercise.image && !exercise.image.includes("default") ? <img src={exercise.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center bg-gray-300"><Dumbbell className="text-gray-500 h-6 w-6"/></div>}
-                                                        </div>
-                                                        <div className="flex-1">
-                                                            <h4 className="font-semibold text-sm">{exercise.name}</h4>
-                                                            <p className="text-xs text-muted-foreground">{exercise.sets} séries x {exercise.reps} repetições</p>
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            ) : <div className="text-center py-8 bg-muted/50 rounded-lg border border-dashed"><p className="font-medium text-muted-foreground">Descanso</p></div>}
-                                        </div>
+                                        <div className="flex items-center justify-start space-x-2 mb-6 overflow-x-auto pb-2">{weekDays.map((day) => (<Button key={day} variant={selectedWorkoutDay === day ? "default" : "outline"} size="sm" className={cn("rounded-lg flex-shrink-0", selectedWorkoutDay === day && "bg-red-800 hover:bg-red-900")} onClick={() => setSelectedWorkoutDay(day)}>{day.substring(0, 3)}</Button>))}</div>
+                                        <div className="space-y-4">{dailyExercises.length > 0 ? dailyExercises.map((exercise, index) => (<div key={index} className="flex items-center gap-4 p-3 bg-muted rounded-lg border"><div className="w-16 h-16 bg-gray-200 rounded-md overflow-hidden flex-shrink-0">{exercise.image && !exercise.image.includes("default") ? <img src={exercise.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center bg-gray-300"><Dumbbell className="text-gray-500 h-6 w-6"/></div>}</div><div className="flex-1"><h4 className="font-semibold text-sm">{exercise.name}</h4><p className="text-xs text-muted-foreground">{exercise.sets} séries x {exercise.reps} repetições</p></div></div>)) : <div className="text-center py-8 bg-muted/50 rounded-lg border border-dashed"><p className="font-medium text-muted-foreground">Descanso</p></div>}</div>
                                     </CardContent>
                                 </Card>
-                            ) : (
-                                <Card><CardContent className="py-10 text-center"><p className="text-muted-foreground">Sem treino público configurado.</p></CardContent></Card>
-                            )}
+                            ) : <Card><CardContent className="py-10 text-center"><p className="text-muted-foreground">Sem treino público configurado.</p></CardContent></Card>}
                         </div>
                     )}
                 </div>
 
-                {/* Coluna Lateral (Edição - Apenas Dono) */}
+                {/* Coluna Lateral: Formulário de Edição */}
                 {isOwner && (
                     <div className="lg:col-span-1 space-y-6">
                         <form onSubmit={handleUpdateProfile}>
@@ -570,51 +643,73 @@ export function ProfilePage({ profileId }: ProfilePageProps) {
                 )}
             </div>
 
-            {/* MODAL DE LISTA DE USUÁRIOS (SEGUIDORES/SEGUINDO) */}
+            {/* Modal: Seguidores / Seguindo */}
             <AnimatePresence>
                 {showUserListModal && (
                     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-                        <motion.div 
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]"
-                        >
+                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">
                             <div className="p-4 border-b flex justify-between items-center bg-slate-50">
                                 <h2 className="text-lg font-bold">{userListTitle}</h2>
-                                <Button variant="ghost" size="icon" onClick={() => setShowUserListModal(false)}>
-                                    <X className="h-4 w-4" />
-                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => setShowUserListModal(false)}><X className="h-4 w-4" /></Button>
                             </div>
-                            
                             <ScrollArea className="flex-1 p-4">
-                                {isUserListLoading ? (
-                                    <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-red-600" /></div>
-                                ) : userList.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {userList.map((u) => (
-                                            <div key={u.id} className="flex items-center gap-3 hover:bg-slate-50 p-2 rounded-lg transition-colors cursor-pointer" onClick={() => {
-                                                window.location.href = `/dashboard?tab=perfil&userId=${u.id}`; // Recarrega para o perfil clicado (ou use router.push e lógica de estado)
-                                            }}>
-                                                <Avatar className="h-10 w-10 border">
-                                                    {u.avatarUrl && <AvatarImage src={`${UPLOAD_URL}/${u.avatarUrl}`} className="object-cover" />}
-                                                    <AvatarFallback className="bg-slate-100 text-slate-600">{u.username.substring(0, 2).toUpperCase()}</AvatarFallback>
-                                                </Avatar>
-                                                <div className="flex flex-col">
-                                                    <span className="font-medium text-sm">{u.nome}</span>
-                                                    <span className="text-xs text-muted-foreground">@{u.username}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-8 text-muted-foreground">
-                                        <Users className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                                        <p className="text-sm">Ninguém aqui ainda.</p>
-                                    </div>
-                                )}
+                                {isUserListLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-red-600" /></div> : userList.length > 0 ? (
+                                    <div className="space-y-4">{userList.map((u) => (<div key={u.id} className="flex items-center gap-3 hover:bg-slate-50 p-2 rounded-lg transition-colors cursor-pointer" onClick={() => { window.location.href = `/dashboard?tab=perfil&userId=${u.id}`; }}><Avatar className="h-10 w-10 border">{u.avatarUrl && <AvatarImage src={`${UPLOAD_URL}/${u.avatarUrl}`} className="object-cover" />}<AvatarFallback className="bg-slate-100 text-slate-600">{u.username.substring(0, 2).toUpperCase()}</AvatarFallback></Avatar><div className="flex flex-col"><span className="font-medium text-sm">{u.nome}</span><span className="text-xs text-muted-foreground">@{u.username}</span></div></div>))}</div>
+                                ) : <div className="text-center py-8 text-muted-foreground"><Users className="h-8 w-8 mx-auto mb-2 opacity-20" /><p className="text-sm">Ninguém aqui ainda.</p></div>}
                             </ScrollArea>
                         </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Modal: Story Viewer com Delete */}
+            <AnimatePresence>
+                {showStoryViewer && stories.length > 0 && (
+                    <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm flex items-center justify-center">
+                        
+                        {/* Top Bar: Delete e Close */}
+                        <div className="absolute top-4 left-0 right-0 flex justify-between items-center px-6 z-50">
+                            {isOwner ? (
+                                <button 
+                                    className="text-white/80 hover:text-red-500 transition-colors bg-black/20 rounded-full p-2"
+                                    onClick={handleDeleteStory}
+                                    disabled={isDeletingStory}
+                                >
+                                    {isDeletingStory ? <Loader2 className="h-6 w-6 animate-spin" /> : <Trash2 className="h-6 w-6" />}
+                                </button>
+                            ) : <div />} 
+
+                            <button 
+                                className="text-white/80 hover:text-white transition-colors bg-black/20 rounded-full p-2"
+                                onClick={() => setShowStoryViewer(false)}
+                            >
+                                <X className="h-6 w-6" />
+                            </button>
+                        </div>
+
+                        {/* Imagem do Story */}
+                        <div className="relative w-full h-full max-w-md max-h-[90vh] bg-black flex items-center justify-center overflow-hidden md:rounded-xl shadow-2xl">
+                            <img 
+                                src={`${UPLOAD_URL}/${stories[currentStoryIndex].mediaUrl}`} 
+                                alt="Story" 
+                                className="max-w-full max-h-full object-contain"
+                            />
+
+                            {/* Barra de Progresso */}
+                            <div className="absolute top-2 left-2 right-2 flex gap-1">
+                                {stories.map((_, idx) => (
+                                    <div key={idx} className="h-1 flex-1 bg-white/30 rounded-full overflow-hidden">
+                                        <div className={cn("h-full bg-white transition-all duration-300", idx < currentStoryIndex ? "w-full" : idx === currentStoryIndex ? "w-full" : "w-0")} />
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Navegação */}
+                            <div className="absolute inset-0 flex justify-between">
+                                <div className="w-1/2 h-full cursor-pointer" onClick={prevStory} />
+                                <div className="w-1/2 h-full cursor-pointer" onClick={nextStory} />
+                            </div>
+                        </div>
                     </div>
                 )}
             </AnimatePresence>

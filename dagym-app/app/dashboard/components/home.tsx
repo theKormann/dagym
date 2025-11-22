@@ -1,4 +1,3 @@
-// ================== INÍCIO DO ARQUIVO ==================
 "use client"
 
 import { useMemo, useState, useEffect, FormEvent, useRef } from "react"
@@ -11,7 +10,9 @@ import {
   Loader2,
   X,
   List,
-  LayoutGrid
+  LayoutGrid,
+  Flame,
+  Users
 } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -25,7 +26,6 @@ import { PostCard } from "./post/postCard"
 import { PostModal } from "./post/PostModal"
 
 
-// --- TIPOS (Frontend) ---
 export type Comment = {
   id: string
   author: { name: string; username: string; avatar: string }
@@ -115,7 +115,10 @@ function mapBackendPostToFrontend(backendPost: PostResponse): Post {
 }
 
 export function HomePage() {
+  // --- ESTADOS ---
   const [layout, setLayout] = useState<"list" | "grid">("list")
+  const [feedType, setFeedType] = useState<'general' | 'following'>('general') // NOVO: Controle do Feed
+  
   const [posts, setPosts] = useState<Post[]>([])
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
 
@@ -139,7 +142,6 @@ export function HomePage() {
     const alreadyShown = localStorage.getItem("dagym_profile_alert")
 
     if (!alreadyShown) {
-      // primeira vez → mostrar aviso
       setShowUpdateAlert(true)
       localStorage.setItem("dagym_profile_alert", "shown")
     }
@@ -175,27 +177,44 @@ export function HomePage() {
   }
 
   // -----------------------------
-  // Buscar Posts
+  // Buscar Posts (Atualizado para Feed Personalizado)
   // -----------------------------
   useEffect(() => {
     const fetchPosts = async () => {
+      // Se tentar carregar feed de seguidores sem estar logado, não faz nada ou força geral
+      if (feedType === 'following' && !currentUser) {
+         return;
+      }
+
       try {
         setIsLoading(true)
         setError(null)
-        const response = await fetch(`${BASE_URL}/api/posts`)
+        
+        // Lógica da URL baseada no tipo de feed
+        let url = `${BASE_URL}/api/posts?type=general`
+        
+        if (feedType === 'following' && currentUser) {
+            url = `${BASE_URL}/api/posts?userId=${currentUser.id}&type=following`
+        }
+
+        const response = await fetch(url)
         if (!response.ok) throw new Error("Não foi possível carregar os posts.")
 
         const backendPosts: PostResponse[] = await response.json()
         setPosts(backendPosts.map(mapBackendPostToFrontend))
       } catch (err: any) {
         setError(err.message || "Erro desconhecido.")
+        setPosts([]) // Limpa posts em caso de erro para não mostrar dados antigos
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchPosts()
-  }, [])
+    // Fetch é acionado quando o componente monta, quando o tipo de feed muda ou quando o usuário é carregado
+    if (currentUser || feedType === 'general') {
+        fetchPosts()
+    }
+  }, [feedType, currentUser])
 
   // --------------------------------------------
   // Publicar
@@ -425,13 +444,34 @@ export function HomePage() {
         </Card>
 
         {/* -------------------------------- */}
-        {/* FEED / TOGGLE GROUP */}
+        {/* NOVO: SELEÇÃO DE FEED & LAYOUT */}
         {/* -------------------------------- */}
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-bold tracking-tight">
-            Feed de Atividades
-          </h2>
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+          
+          {/* Botões de Alternância de Feed */}
+          <div className="flex p-1 bg-muted rounded-lg w-full md:w-auto">
+            <Button
+                variant={feedType === 'general' ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setFeedType('general')}
+                className={`flex-1 md:flex-none gap-2 rounded-md ${feedType === 'general' ? "bg-white text-black shadow-sm hover:bg-white/90" : "hover:bg-transparent"}`}
+            >
+                <Flame className="h-4 w-4 text-orange-500" />
+                Explorar
+            </Button>
+            <Button
+                variant={feedType === 'following' ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setFeedType('following')}
+                disabled={!currentUser}
+                className={`flex-1 md:flex-none gap-2 rounded-md ${feedType === 'following' ? "bg-white text-black shadow-sm hover:bg-white/90" : "hover:bg-transparent"}`}
+            >
+                <Users className="h-4 w-4 text-blue-500" />
+                Para Você
+            </Button>
+          </div>
 
+          {/* Toggle de Layout (Lista/Grid) */}
           <ToggleGroup
             type="single"
             value={layout}
@@ -461,10 +501,15 @@ export function HomePage() {
             </p>
           </div>
         ) : !error && posts.length === 0 ? (
-          <div className="flex justify-center items-center h-64">
-            <p className="text-lg text-muted-foreground">
-              Nenhuma publicação ainda. Seja o primeiro!
+          <div className="flex justify-center items-center h-64 flex-col text-center p-6 border-2 border-dashed rounded-xl">
+            <p className="text-lg text-muted-foreground font-medium">
+              Nenhuma publicação encontrada.
             </p>
+            {feedType === 'following' && (
+                <p className="text-sm text-muted-foreground mt-2 max-w-xs">
+                    Siga pessoas ou entre em comunidades para ver as atividades delas aqui!
+                </p>
+            )}
           </div>
         ) : (
           <div
